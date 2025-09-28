@@ -63,7 +63,10 @@ export const AuthProvider = ({ children }) => {
     const verifyToken = async () => {
       if (state.token) {
         try {
-          const response = await axios.get('/api/auth/profile');
+          const response = await axios.get('/api/auth/profile', {
+            // Explicitly include Authorization to avoid any race with default headers setup
+            headers: { Authorization: `Bearer ${state.token}` },
+          });
           dispatch({
             type: 'LOGIN_SUCCESS',
             payload: {

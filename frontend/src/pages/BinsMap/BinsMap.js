@@ -4,9 +4,32 @@ import { useQuery } from 'react-query';
 import axios from 'axios';
 import LoadingSpinner from '../../components/Common/LoadingSpinner';
 import { MapPin, Filter, Search, Trash2, Navigation } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
+import L from 'leaflet';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+// Ensure default Leaflet marker icons work in CRA
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+// Use inline SVG-based icons to avoid broken marker images and ensure consistent rendering
+const createSvgIcon = (color) => {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 48'><path fill='${color}' d='M16 0c-8.8 0-16 7.2-16 16 0 12 16 32 16 32s16-20 16-32C32 7.2 24.8 0 16 0z'/><circle cx='16' cy='16' r='6' fill='#ffffff'/></svg>`;
+  return L.icon({
+    iconUrl: `data:image/svg+xml,${encodeURIComponent(svg)}`,
+    iconSize: [24, 36],
+    iconAnchor: [12, 36],
+    popupAnchor: [0, -30],
+  });
+};
 
 const BinsMap = () => {
-  const { user } = useState();
+  const { user } = useAuth();
   const [selectedBin, setSelectedBin] = useState(null);
   const [filters, setFilters] = useState({
     type: 'all',
@@ -282,22 +305,52 @@ const BinsMap = () => {
         {/* Map Area */}
         <div className="flex-1 bg-gray-100 relative">
           {userLocation ? (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Interactive Map</h3>
-                <p className="text-gray-600 mb-4">
-                  In a real implementation, this would show an interactive map with bin locations
-                </p>
-                <div className="bg-white rounded-lg shadow-sm p-4 max-w-sm mx-auto">
-                  <h4 className="font-medium text-gray-900 mb-2">Current Location</h4>
-                  <p className="text-sm text-gray-600">
-                    Latitude: {userLocation.latitude.toFixed(4)}<br />
-                    Longitude: {userLocation.longitude.toFixed(4)}
-                  </p>
-                </div>
-              </div>
-            </div>
+            <MapContainer
+              center={[userLocation.latitude, userLocation.longitude]}
+              zoom={13}
+              scrollWheelZoom
+              style={{ height: '100%', width: '100%' }}
+            >
+              <TileLayer
+                attribution="&copy; OpenStreetMap contributors"
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+
+              {/* User location marker and search radius */}
+              <Marker position={[userLocation.latitude, userLocation.longitude]} icon={createSvgIcon('#2563eb')}>
+                <Popup>You are here</Popup>
+              </Marker>
+              <Circle
+                center={[userLocation.latitude, userLocation.longitude]}
+                radius={filters.radius * 1000}
+                pathOptions={{ color: '#2563eb', fillOpacity: 0.06 }}
+              />
+
+              {/* Bin markers */}
+              {filteredBins.map((bin) => (
+                <Marker
+                  key={bin._id}
+                  position={[
+                    bin.location.coordinates.latitude,
+                    bin.location.coordinates.longitude,
+                  ]}
+                  icon={createSvgIcon(
+                    bin.status === 'empty' ? '#22c55e' :
+                    bin.status === 'partial' ? '#eab308' :
+                    bin.status === 'full' ? '#f97316' : '#ef4444'
+                  )}
+                  eventHandlers={{ click: () => setSelectedBin(bin) }}
+                >
+                  <Popup>
+                    <div className="text-sm">
+                      <div className="font-medium mb-1">{bin.location.name}</div>
+                      <div className="text-gray-600 mb-1 capitalize">{bin.type} • {bin.status}</div>
+                      <div className="text-gray-500">{bin.location.address}</div>
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
+            </MapContainer>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
               <LoadingSpinner size="lg" />
